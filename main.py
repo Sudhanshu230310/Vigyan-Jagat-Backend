@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # pyrefly: ignore [missing-import]
 from bson import ObjectId
@@ -19,6 +20,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 async def read_root():
@@ -28,6 +37,7 @@ async def read_root():
     items_list = []
     if db_helper.db is not None:
         cursor = db_helper.db.items.find()
+        print(cursor)
         async for doc in cursor:
             doc_copy = doc.copy()
             doc_copy["_id"] = str(doc_copy["_id"])
@@ -68,7 +78,6 @@ async def read_item(item_id: str, q: Optional[str] = None):
             detail=f"Item with ID {item_id} not found"
         )
     
-
     item_data = item.copy()
     item_data.pop("_id", None)
     
@@ -82,10 +91,10 @@ async def read_item(item_id: str, q: Optional[str] = None):
 
 
 @app.get("/{category}")
-async def read_root(category: str):
+async def read_by_category(category: str):
     items_list = []
     if db_helper.db is not None:
-        cursor = db_helper.db.items.find({f"category": category})
+        cursor = db_helper.db.items.find({"category": category})
         async for doc in cursor:
             doc_copy = doc.copy()
             doc_copy["_id"] = str(doc_copy["_id"])
@@ -94,7 +103,3 @@ async def read_root(category: str):
     return {
         "items": items_list,
     }
-
-
-
-
