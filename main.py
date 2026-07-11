@@ -94,7 +94,7 @@ async def read_item(item_id: str, q: Optional[str] = None):
 async def read_by_category(category: str):
     items_list = []
     if db_helper.db is not None:
-        cursor = db_helper.db.items.find({"category": category})
+        cursor = db_helper.db.items.find({"subcategory": category})
         async for doc in cursor:
             doc_copy = doc.copy()
             doc_copy["_id"] = str(doc_copy["_id"])
