@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException
+from urllib.parse import unquote
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 # pyrefly: ignore [missing-import]
@@ -52,62 +53,21 @@ async def read_root():
         "redoc_url": "/redoc",
     }
 
-@app.get("/health")
-async def health():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "service": "vigyan-jagat-api"
-    }
 
-@app.get("/items/{item_id}")
-async def read_item(item_id: str, q: Optional[str] = None):
-    """
-    Retrieve an item by its ID. Supports optional query filtering.
-    """
-    try:
-        obj_id = ObjectId(item_id)
-    except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid item ID format: '{item_id}'. Must be a valid 24-character hex string."
-        )
-    
-    if db_helper.db is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Database connection not initialized"
-        )
-        
-    item = await db_helper.db.items.find_one({"_id": obj_id})
-    if not item:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Item with ID {item_id} not found"
-        )
-    
-    item_data = item.copy()
-    item_data.pop("_id", None)
-    
-    response = {
-        "item_id": item_id,
-        "item": item_data
-    }
-    if q:
-        response.update({"query": q})
-    return response
-
-
-@app.get("/{category}")
-async def read_by_category(category: str):
+@app.get("/{subcategory:path}")
+async def read_by_subcategory(subcategory: str):
+    subcategory = unquote(subcategory)
     items_list = []
     if db_helper.db is not None:
-        cursor = db_helper.db.items.find({"subcategory": category})
+        cursor = db_helper.db.items.find()
         async for doc in cursor:
-            doc_copy = doc.copy()
-            doc_copy["_id"] = str(doc_copy["_id"])
-            items_list.append(doc_copy)
-    
-    return {
-        "items": items_list,
-    }
+            products = doc.get("products", {})
+            for category, subcats in products.items():
+                if subcategory in subcats:
+                    for name, details in subcats[subcategory].items():
+                        items_list.append({
+                            "name": name,
+                            "brand": details.get("brand"),
+                            "description": details.get("description"),
+                        })
+    return {"items": items_list}
