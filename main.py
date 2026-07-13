@@ -33,25 +33,36 @@ app.add_middleware(
 
 @app.get("/")
 async def read_root():
-    """
-    Root endpoint that provides API status and list of items in the database.
-    """
-    items_list = []
-    if db_helper.db is not None:
-        cursor = db_helper.db.items.find()
-        print(cursor)
-        async for doc in cursor:
-            doc_copy = doc.copy()
-            doc_copy["_id"] = str(doc_copy["_id"])
-            items_list.append(doc_copy)
-    
     return {
-        "items": items_list,
         "status": "online",
-        "message": "Welcome to the FastAPI Simple Backend!",
-        "docs_url": "/docs",
-        "redoc_url": "/redoc",
     }
+
+
+@app.get("/product/{subcategory}/{name}")
+async def read_single_product(subcategory: str, name: str):
+    subcategory = unquote(subcategory)
+    name = unquote(name)
+ 
+    # Distinguish "DB not connected" (503) from "product genuinely missing" (404).
+    if db_helper.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+ 
+    cursor = db_helper.db.items.find()
+    async for doc in cursor:
+        products = doc.get("products", {})
+        for category, subcats in products.items():
+            if subcategory in subcats and name in subcats[subcategory]:
+                details = subcats[subcategory][name]
+                return {
+                    "product": {
+                        "name": name,
+                        "category": category,
+                        "subcategory": subcategory,
+                        **details,  # brand, description, specifications, images, pages
+                    }
+                }
+ 
+    raise HTTPException(status_code=404, detail="Product not found")
 
 
 @app.get("/{subcategory:path}")
