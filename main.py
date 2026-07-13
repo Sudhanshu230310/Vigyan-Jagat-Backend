@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 # pyrefly: ignore [missing-import]
 from bson import ObjectId
 from db.connection import db_helper
+from datetime import datetime, timezone
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,6 +52,13 @@ async def read_root():
         "redoc_url": "/redoc",
     }
 
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "service": "vigyan-jagat-api"
+    }
 
 @app.get("/items/{item_id}")
 async def read_item(item_id: str, q: Optional[str] = None):
