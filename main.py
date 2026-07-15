@@ -82,3 +82,12 @@ async def read_by_subcategory(subcategory: str):
                             "description": details.get("description"),
                         })
     return {"items": items_list}
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "chemical-api"
+    }
