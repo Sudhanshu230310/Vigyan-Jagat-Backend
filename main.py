@@ -38,6 +38,15 @@ async def read_root():
     }
 
 
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "chemical-api"
+    }
+
+
 @app.get("/product/{subcategory}/{name}")
 async def read_single_product(subcategory: str, name: str):
     subcategory = unquote(subcategory)
@@ -65,6 +74,30 @@ async def read_single_product(subcategory: str, name: str):
     raise HTTPException(status_code=404, detail="Product not found")
 
 
+@app.get("/category/{category}/subcategories")
+async def read_subcategories(category: str):
+    category = unquote(category)
+ 
+    # Distinguish "DB not connected" (503) from "category genuinely missing" (404).
+    if db_helper.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+ 
+    subcategories = set()
+    cursor = db_helper.db.items.find()
+    async for doc in cursor:
+        products = doc.get("products", {})
+        if category in products:
+            subcategories.update(products[category].keys())
+ 
+    if not subcategories:
+        raise HTTPException(status_code=404, detail="Category not found")
+ 
+    return {
+        "category": category,
+        "subcategories": sorted(subcategories),
+    }
+
+
 @app.get("/{subcategory:path}")
 async def read_by_subcategory(subcategory: str):
     subcategory = unquote(subcategory)
@@ -82,12 +115,3 @@ async def read_by_subcategory(subcategory: str):
                             "description": details.get("description"),
                         })
     return {"items": items_list}
-
-
-@app.get("/health")
-async def health():
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "service": "chemical-api"
-    }
