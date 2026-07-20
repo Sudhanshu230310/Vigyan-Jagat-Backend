@@ -1,0 +1,25 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+model WholesaleQuote {
+  id               Int      @id @default(autoincrement())
+  name             String
+  email            String
+  phone            String
+  organization     String
+  quantity         String
+  message          String
+  product_name     String
+  subcategory_name String
+  brand            String?
+  created_at       DateTime @default(now())
+
+  @@map("wholesale_quotes")
+}

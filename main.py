@@ -7,13 +7,27 @@ from pydantic import BaseModel, Field
 # pyrefly: ignore [missing-import]
 from bson import ObjectId
 from db.connection import db_helper
+from db.postgres import pg_db
 from datetime import datetime, timezone
+
+class QuoteRequest(BaseModel):
+    name: str
+    email: str
+    phone: str
+    organization: str
+    quantity: str
+    message: str
+    product_name: str
+    subcategory_name: str
+    brand: Optional[str] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db_helper.connect()
+    await pg_db.connect()
     yield
     db_helper.disconnect()
+    await pg_db.disconnect()
 
 app = FastAPI(
     title="FastAPI Simple Backend",
@@ -45,6 +59,31 @@ async def health():
         "timestamp": datetime.utcnow().isoformat(),
         "service": "chemical-api"
     }
+
+
+@app.post("/quote")
+async def create_quote(quote: QuoteRequest):
+    if not pg_db.is_connected():
+        raise HTTPException(status_code=503, detail="PostgreSQL database unavailable")
+        
+    try:
+        created_quote = await pg_db.wholesalequote.create(
+            data={
+                "name": quote.name,
+                "email": quote.email,
+                "phone": quote.phone,
+                "organization": quote.organization,
+                "quantity": quote.quantity,
+                "message": quote.message,
+                "product_name": quote.product_name,
+                "subcategory_name": quote.subcategory_name,
+                "brand": quote.brand,
+            }
+        )
+        return {"status": "success", "quote_id": created_quote.id}
+    except Exception as e:
+        print(f"Error saving quote using Prisma: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save wholesale quote request")
 
 
 @app.get("/product/{subcategory}/{name}")
