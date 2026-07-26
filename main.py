@@ -152,6 +152,49 @@ async def read_subcategories(category: str):
     }
 
 
+@app.get("/search")
+async def search_products(q: str = ""):
+    query = unquote(q).strip().lower()
+    if not query:
+        return {"query": q, "results": []}
+
+    if db_helper.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    results = []
+    cursor = db_helper.db.items.find()
+    async for doc in cursor:
+        products = doc.get("products", {})
+        for category, subcats in products.items():
+            for subcategory, items in subcats.items():
+                for name, details in items.items():
+                    brand = str(details.get("brand") or "")
+                    desc = str(details.get("description") or "")
+                    images = details.get("images", [])
+
+                    if (query in name.lower() or 
+                        query in brand.lower() or 
+                        query in subcategory.lower() or 
+                        query in category.lower()):
+                        
+                        results.append({
+                            "name": name,
+                            "brand": details.get("brand"),
+                            "subcategory": subcategory,
+                            "category": category,
+                            "description": details.get("description"),
+                            "images": images
+                        })
+                        if len(results) >= 30:
+                            break
+                if len(results) >= 30:
+                    break
+            if len(results) >= 30:
+                break
+
+    return {"query": q, "results": results}
+
+
 @app.get("/{subcategory:path}")
 async def read_by_subcategory(subcategory: str):
     subcategory = unquote(subcategory)
