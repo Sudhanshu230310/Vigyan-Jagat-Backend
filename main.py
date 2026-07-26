@@ -86,6 +86,21 @@ async def create_quote(quote: QuoteRequest):
         raise HTTPException(status_code=500, detail="Failed to save wholesale quote request")
 
 
+@app.get("/quotes")
+async def get_quotes():
+    if not pg_db.is_connected():
+        raise HTTPException(status_code=503, detail="PostgreSQL database unavailable")
+        
+    try:
+        quotes = await pg_db.wholesalequote.find_many(
+            order={"created_at": "desc"}
+        )
+        return {"status": "success", "quotes": quotes}
+    except Exception as e:
+        print(f"Error fetching quotes using Prisma: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch wholesale quotes")
+
+
 @app.get("/product/{subcategory}/{name}")
 async def read_single_product(subcategory: str, name: str):
     subcategory = unquote(subcategory)
