@@ -65,7 +65,7 @@ async def health():
 async def create_quote(quote: QuoteRequest):
     if not pg_db.is_connected():
         raise HTTPException(status_code=503, detail="PostgreSQL database unavailable")
-        
+
     try:
         created_quote = await pg_db.wholesalequote.create(
             data={
@@ -90,7 +90,7 @@ async def create_quote(quote: QuoteRequest):
 async def get_quotes():
     if not pg_db.is_connected():
         raise HTTPException(status_code=503, detail="PostgreSQL database unavailable")
-        
+
     try:
         quotes = await pg_db.wholesalequote.find_many(
             order={"created_at": "desc"}
@@ -105,11 +105,11 @@ async def get_quotes():
 async def read_single_product(subcategory: str, name: str):
     subcategory = unquote(subcategory)
     name = unquote(name)
- 
+
     # Distinguish "DB not connected" (503) from "product genuinely missing" (404).
     if db_helper.db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
- 
+
     cursor = db_helper.db.items.find()
     async for doc in cursor:
         products = doc.get("products", {})
@@ -124,28 +124,28 @@ async def read_single_product(subcategory: str, name: str):
                         **details,  # brand, description, specifications, images, pages
                     }
                 }
- 
+
     raise HTTPException(status_code=404, detail="Product not found")
 
 
 @app.get("/category/{category}/subcategories")
 async def read_subcategories(category: str):
     category = unquote(category)
- 
+
     # Distinguish "DB not connected" (503) from "category genuinely missing" (404).
     if db_helper.db is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
- 
+
     subcategories = set()
     cursor = db_helper.db.items.find()
     async for doc in cursor:
         products = doc.get("products", {})
         if category in products:
             subcategories.update(products[category].keys())
- 
+
     if not subcategories:
         raise HTTPException(status_code=404, detail="Category not found")
- 
+
     return {
         "category": category,
         "subcategories": sorted(subcategories),
@@ -172,11 +172,11 @@ async def search_products(q: str = ""):
                     desc = str(details.get("description") or "")
                     images = details.get("images", [])
 
-                    if (query in name.lower() or 
-                        query in brand.lower() or 
-                        query in subcategory.lower() or 
+                    if (query in name.lower() or
+                        query in brand.lower() or
+                        query in subcategory.lower() or
                         query in category.lower()):
-                        
+
                         results.append({
                             "name": name,
                             "brand": details.get("brand"),
@@ -195,6 +195,68 @@ async def search_products(q: str = ""):
     return {"query": q, "results": results}
 
 
+@app.get("/brands")
+async def read_brands():
+    if db_helper.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    brand_counts: dict[str, int] = {}
+    cursor = db_helper.db.items.find()
+    async for doc in cursor:
+        products = doc.get("products", {})
+        for category, subcats in products.items():
+            for subcategory, items in subcats.items():
+                for name, details in items.items():
+                    brand = details.get("brand")
+                    if brand:
+                        brand_counts[brand] = brand_counts.get(brand, 0) + 1
+
+    if not brand_counts:
+        raise HTTPException(status_code=404, detail="No brands found")
+
+    brands = [
+        {"brand": brand, "product_count": count}
+        for brand, count in sorted(brand_counts.items(), key=lambda x: x[0].lower())
+    ]
+
+    return {
+        "total_brands": len(brands),
+        "brands": brands,
+    }
+
+
+@app.get("/brands/{brand}/products")
+async def read_products_by_brand(brand: str):
+    brand = unquote(brand)
+
+    if db_helper.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    results = []
+    cursor = db_helper.db.items.find()
+    async for doc in cursor:
+        products = doc.get("products", {})
+        for category, subcats in products.items():
+            for subcategory, items in subcats.items():
+                for name, details in items.items():
+                    if str(details.get("brand") or "").lower() == brand.lower():
+                        results.append({
+                            "name": name,
+                            "category": category,
+                            "subcategory": subcategory,
+                            "description": details.get("description"),
+                            "images": details.get("images", []),
+                        })
+
+    if not results:
+        raise HTTPException(status_code=404, detail=f"No products found for brand '{brand}'")
+
+    return {"brand": brand, "count": len(results), "products": results}
+
+
+# Catch-all route MUST be registered last: {subcategory:path} matches any
+# path (including multi-segment ones like /brands/Tecan/products), so any
+# specific route defined below this point would never be reached.
 @app.get("/{subcategory:path}")
 async def read_by_subcategory(subcategory: str):
     subcategory = unquote(subcategory)
