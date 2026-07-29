@@ -21,6 +21,13 @@ class QuoteRequest(BaseModel):
     subcategory_name: str
     brand: Optional[str] = None
 
+
+class ContactRequest(BaseModel):
+    fullName: str
+    email: str
+    phone: str
+    message: str
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db_helper.connect()
@@ -99,6 +106,41 @@ async def get_quotes():
     except Exception as e:
         print(f"Error fetching quotes using Prisma: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch wholesale quotes")
+
+
+@app.post("/contact")
+async def create_contact(contact: ContactRequest):
+    if not pg_db.is_connected():
+        raise HTTPException(status_code=503, detail="PostgreSQL database unavailable")
+
+    try:
+        created_msg = await pg_db.contactmessage.create(
+            data={
+                "name": contact.fullName,
+                "email": contact.email,
+                "phone": contact.phone,
+                "message": contact.message,
+            }
+        )
+        return {"status": "success", "message_id": created_msg.id}
+    except Exception as e:
+        print(f"Error saving contact message using Prisma: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save contact message")
+
+
+@app.get("/contacts")
+async def get_contacts():
+    if not pg_db.is_connected():
+        raise HTTPException(status_code=503, detail="PostgreSQL database unavailable")
+
+    try:
+        messages = await pg_db.contactmessage.find_many(
+            order={"created_at": "desc"}
+        )
+        return {"status": "success", "messages": messages}
+    except Exception as e:
+        print(f"Error fetching contact messages using Prisma: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch contact messages")
 
 
 @app.get("/product/{subcategory}/{name}")
