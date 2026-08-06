@@ -6,9 +6,11 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # System deps needed by prisma-client-py to fetch its query engine binary
+# (libatomic1 is required by the node runtime prisma downloads internally)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     curl \
+    libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
