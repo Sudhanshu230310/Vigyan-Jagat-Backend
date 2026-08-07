@@ -312,7 +312,13 @@ async def read_by_subcategory(subcategory: str):
                     for name, details in subcats[subcategory].items():
                         items_list.append({
                             "name": name,
+                            "category": category,
+                            "subcategory": subcategory,
                             "brand": details.get("brand"),
                             "description": details.get("description"),
+                            "images": details.get("images", []),
+                            "specifications": details.get("specifications", {}),
+                            "cas_no": details.get("cas_no"),
+                            "grade": details.get("grade"),
                         })
     return {"items": items_list}
